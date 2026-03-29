@@ -1,4 +1,4 @@
-# RE·Lab — Regular Expression Visualizer
+# RE Lab — Regular Expression Visualizer
 
 > Enter a regular expression. See the strings it generates.
 > Prove two expressions equivalent — or find the string that breaks them.
