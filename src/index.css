@@ -1,0 +1,268 @@
+@import "tailwindcss";
+
+/* ── Formal Language Laboratory: Pen-and-Paper Aesthetic ── */
+
+@theme {
+  --font-serif: 'Crimson Pro', 'Georgia', 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+  --color-ink: #111111;
+  --color-paper: #fafafa;
+  --color-border: #222222;
+  --color-border-light: #cccccc;
+  --color-accent: #990000;
+  --color-accept: #006600;
+  --color-reject: #990000;
+  --color-highlight: #ffffcc;
+  --color-muted: #666666;
+}
+
+/* ── Base Reset ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font-mono);
+  color: var(--color-ink);
+  background-color: var(--color-paper);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+code, pre, .mono {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.math {
+  font-family: var(--font-serif);
+  font-style: italic;
+}
+
+/* ── Schematic Panel Borders ── */
+.panel {
+  border: 1px solid var(--color-border);
+  background: var(--color-paper);
+}
+
+.panel-header {
+  border-bottom: 1px solid var(--color-border);
+  padding: 8px 12px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── Input Fields ── */
+input[type="text"],
+textarea {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  border: 1px solid var(--color-border);
+  background: white;
+  padding: 6px 10px;
+  outline: none;
+  width: 100%;
+}
+
+input[type="text"]:focus,
+textarea:focus {
+  border-color: var(--color-ink);
+  box-shadow: 0 0 0 1px var(--color-ink);
+}
+
+/* ── Buttons ── */
+button {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  border: 1px solid var(--color-border);
+  background: white;
+  color: var(--color-ink);
+  padding: 5px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: background-color 0.1s, color 0.1s;
+}
+
+button:hover {
+  background: var(--color-ink);
+  color: white;
+}
+
+button:active {
+  background: #333;
+}
+
+button.active {
+  background: var(--color-ink);
+  color: white;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Stage Tabs ── */
+.stage-tab {
+  display: inline-block;
+  padding: 5px 16px;
+  border: 1px solid var(--color-border);
+  border-bottom: none;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--color-paper);
+  margin-right: -1px;
+}
+
+.stage-tab.active {
+  background: var(--color-ink);
+  color: white;
+}
+
+/* ── Tables ── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+th, td {
+  border: 1px solid var(--color-border-light);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+th {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  background: #f0f0f0;
+}
+
+tr:hover td {
+  background: var(--color-highlight);
+  cursor: pointer;
+}
+
+/* ── Parse Error Underline ── */
+.parse-error-underline {
+  text-decoration: underline wavy var(--color-accent);
+  text-underline-offset: 3px;
+}
+
+/* ── Status Badges ── */
+.badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border: 1px solid;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-accepted {
+  border-color: var(--color-accept);
+  color: var(--color-accept);
+}
+
+.badge-rejected {
+  border-color: var(--color-reject);
+  color: var(--color-reject);
+}
+
+/* ── Symbol Palette ── */
+.symbol-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border: 1px solid var(--color-border-light);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  cursor: pointer;
+  background: white;
+  text-transform: none;
+}
+
+.symbol-btn:hover {
+  background: var(--color-ink);
+  color: white;
+  border-color: var(--color-ink);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-paper);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-light);
+  border: 1px solid var(--color-paper);
+}
+
+/* ── Cytoscape container ── */
+.cy-container {
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+}
+
+/* ── Reduction Badge ── */
+.reduction-badge {
+  border: 1px solid var(--color-border);
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reduction-arrow {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+}
+
+/* ── Tooltip ── */
+.cy-tooltip {
+  position: absolute;
+  background: white;
+  border: 1px solid var(--color-border);
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  pointer-events: none;
+  z-index: 1000;
+  max-width: 200px;
+}
