@@ -109,9 +109,32 @@ const CY_STYLE: cytoscape.StylesheetStyle[] = [
       'line-style': 'dashed',
       'line-color': '#999',
       'target-arrow-shape': 'none',
-      label: '',
+      label: 'equivalent',
+      'font-size': '10px',
+      'color': '#999',
+      'text-background-opacity': 1,
+      'text-background-color': '#fafafa',
       width: 1,
       'curve-style': 'unbundled-bezier',
+    },
+  },
+  {
+    selector: '.automaton-wrapper',
+    style: {
+      'background-opacity': 0.02,
+      'background-color': '#111',
+      'border-width': 1,
+      'border-style': 'dashed',
+      'border-color': '#666',
+      'padding': 20,
+      label: 'data(label)',
+      'text-valign': 'top',
+      'text-halign': 'center',
+      'text-margin-y': 4,
+      'font-family': '"JetBrains Mono", monospace',
+      'font-weight': 'bold',
+      'font-size': '12px',
+      'color': '#333',
     },
   },
 ];
@@ -134,10 +157,16 @@ export function AutomataGraph() {
     }
   }, [state.activeStage, state.pipeline]);
 
-  const getActiveAutomatonB = useCallback((): MinDFA | null => {
+  const getActiveAutomatonB = useCallback((): NFA | DFA | MinDFA | null => {
     if (state.mode !== 'comparison' || !state.pipelineB) return null;
-    return state.pipelineB.minDfa;
-  }, [state.mode, state.pipelineB]);
+    const pipeline = state.pipelineB;
+    switch (state.activeStage) {
+      case 'nfa': return pipeline.nfa;
+      case 'dfa': return pipeline.dfa;
+      case 'minDfa': return pipeline.minDfa;
+      default: return null;
+    }
+  }, [state.mode, state.pipelineB, state.activeStage]);
 
   // Initialize Cytoscape
   useEffect(() => {
@@ -175,15 +204,18 @@ export function AutomataGraph() {
     }
 
     const isNFA = isNFAType(automaton);
-    const elements = buildElements(automaton, state.highlightedStates, state.activeStage, 'a');
+    const useGroups = state.mode === 'comparison' && automatonB !== null;
+    const elements = buildElements(automaton, state.highlightedStates, state.activeStage, 'a', useGroups);
 
-    if (state.mode === 'comparison' && automatonB) {
-      const elementsB = buildElements(automatonB, new Set(), 'minDfa', 'b');
+    if (useGroups && automatonB) {
+      const elementsB = buildElements(automatonB, new Set(), state.activeStage, 'b', true);
       elements.push(...elementsB);
 
       // Add bridge lines for bijection
-      if (state.equivalenceResult?.equivalent && state.equivalenceResult.bijection) {
+      if (state.activeStage === 'minDfa' && state.equivalenceResult?.equivalent && state.equivalenceResult.bijection) {
+        console.log(`[Graph Render] Drawing ${state.equivalenceResult.bijection.length} bijection bridges (Left: MinDFA, Right: MinDFA)`);
         for (const [stateA, stateB] of state.equivalenceResult.bijection) {
+          console.log(`[Graph Render] Node A: a-${stateA} | Node B: b-${stateB}`); // Instrumentation
           elements.push({
             data: {
               id: `bridge-${stateA}-${stateB}`,
@@ -193,6 +225,8 @@ export function AutomataGraph() {
             classes: 'bridge',
           });
         }
+      } else if (state.mode === 'comparison' && state.equivalenceResult?.bijection) {
+        console.log(`[Graph Render] Skipping bridges. activeStage is '${state.activeStage}', requires 'minDfa'.`);
       }
     }
 
@@ -339,14 +373,27 @@ function buildElements(
   automaton: NFA | DFA | MinDFA,
   highlighted: Set<StateId>,
   stage: string,
-  prefix: string
+  prefix: string,
+  useGroups?: boolean
 ): cytoscape.ElementDefinition[] {
   const elements: cytoscape.ElementDefinition[] = [];
   const isNFA = isNFAType(automaton);
 
+  const parentId = useGroups ? `${prefix}-group` : undefined;
+
+  if (parentId) {
+    elements.push({
+      data: {
+        id: parentId,
+        label: prefix === 'a' ? 'RE 1' : 'RE 2',
+      },
+      classes: 'automaton-wrapper',
+    });
+  }
+
   // ── Invisible init node for start arrow ──
   elements.push({
-    data: { id: `${prefix}-init`, label: '' },
+    data: { id: `${prefix}-init`, label: '', parent: parentId },
     classes: 'init-node',
   });
 
@@ -361,6 +408,7 @@ function buildElements(
         id: `${prefix}-${stateId}`,
         label: stateId,
         stateId,
+        parent: parentId
       },
       classes: classes.join(' '),
     });

@@ -181,7 +181,7 @@ function StringTester() {
       ? state.pipeline.minDfa
       : state.activeStage === 'dfa'
       ? state.pipeline.dfa
-      : null;
+      : (state.pipeline.minDfa || state.pipeline.dfa);
 
     if (!automaton) return;
 
