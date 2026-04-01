@@ -63,13 +63,17 @@ class Parser {
     this.errors = [];
   }
 
-  /** Peek at the current character without consuming. Returns '' at EOF. */
+  /** Peek at the current character without consuming. Skips spaces. Returns '' at EOF. */
   private peek(): string {
+    while (this.pos < this.input.length && /\s/.test(this.input[this.pos])) {
+      this.pos++;
+    }
     return this.pos < this.input.length ? this.input[this.pos] : '';
   }
 
   /** Consume and return the current character, advancing the cursor. */
   private consume(): string {
+    this.peek(); // ensure spaces are skipped before consuming
     return this.input[this.pos++];
   }
 
