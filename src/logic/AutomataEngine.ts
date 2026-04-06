@@ -94,12 +94,13 @@ function addTransition(
 export function toNFA(ast: RegexNode): NFA {
   resetStateCounter();
   const fragment = buildFragment(ast);
+  const cleaned = eliminateRedundantEpsilons(fragment);
   return {
-    states: fragment.states,
-    alphabet: fragment.alphabet,
-    transitions: fragment.transitions,
-    startState: fragment.start,
-    acceptStates: new Set([fragment.accept]),
+    states: cleaned.states,
+    alphabet: cleaned.alphabet,
+    transitions: cleaned.transitions,
+    startState: cleaned.start,
+    acceptStates: new Set([cleaned.accept]),
   };
 }
 
@@ -278,6 +279,106 @@ function buildStar(frag: NFAFragment): NFAFragment {
   addTransition(transitions, frag.accept, '', accept);
 
   return { states, alphabet, transitions, start, accept };
+}
+
+// ═══════════════════════════════════════════════════════════
+// §3b. Redundant ε-Transition Cleanup
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Eliminate redundant consecutive ε-transitions from an NFA fragment.
+ *
+ * **Algorithm:**
+ * A state is a "pass-through" candidate if:
+ *   1. It is NOT the fragment's start or accept state
+ *   2. ALL incoming transitions are ε (no symbol arrives at this state)
+ *   3. ALL outgoing transitions are ε (no symbol leaves this state)
+ *
+ * For each such state q_mid:
+ *   - For every q_src →ε→ q_mid and q_mid →ε→ q_dst:
+ *     add a bypass edge q_src →ε→ q_dst
+ *   - Remove q_mid and all its transitions
+ *
+ * This pass is applied iteratively until no more candidates exist.
+ * It is semantics-preserving: the ε-closure of every remaining state
+ * is unchanged, so the recognized language is identical.
+ */
+function eliminateRedundantEpsilons(frag: NFAFragment): NFAFragment {
+  const states = new Set(frag.states);
+  const transitions = new Map<StateId, Map<string, Set<StateId>>>();
+
+  // Deep-copy transitions
+  for (const [from, map] of frag.transitions) {
+    const newMap = new Map<string, Set<StateId>>();
+    for (const [sym, tos] of map) {
+      newMap.set(sym, new Set(tos));
+    }
+    transitions.set(from, newMap);
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+
+    for (const qMid of [...states]) {
+      // Rule 1: never remove start or accept
+      if (qMid === frag.start || qMid === frag.accept) continue;
+
+      // Rule 3: all outgoing transitions must be ε only
+      const outMap = transitions.get(qMid);
+      if (!outMap) continue; // no outgoing transitions at all — isolated, skip
+      let allOutEpsilon = true;
+      for (const sym of outMap.keys()) {
+        if (sym !== '') { allOutEpsilon = false; break; }
+      }
+      if (!allOutEpsilon) continue;
+
+      // Rule 2: all incoming transitions must be ε only
+      let allInEpsilon = true;
+      const incomingSources: StateId[] = [];
+      for (const [src, srcMap] of transitions) {
+        if (src === qMid) continue;
+        for (const [sym, tos] of srcMap) {
+          if (tos.has(qMid)) {
+            if (sym !== '') { allInEpsilon = false; break; }
+            incomingSources.push(src);
+          }
+        }
+        if (!allInEpsilon) break;
+      }
+      if (!allInEpsilon) continue;
+
+      // qMid is a pass-through state — bypass it
+      const epsilonTargets = outMap.get('') ?? new Set();
+
+      // Add bypass edges: q_src →ε→ q_dst for each (src, dst) pair
+      for (const src of incomingSources) {
+        for (const dst of epsilonTargets) {
+          if (dst === qMid) continue; // avoid self-references to removed node
+          addTransition(transitions, src, '', dst);
+        }
+        // Remove the edge src →ε→ qMid
+        const srcEps = transitions.get(src)?.get('');
+        if (srcEps) {
+          srcEps.delete(qMid);
+          if (srcEps.size === 0) transitions.get(src)!.delete('');
+        }
+      }
+
+      // Remove qMid entirely
+      transitions.delete(qMid);
+      states.delete(qMid);
+      changed = true;
+    }
+  }
+
+  return {
+    states,
+    alphabet: frag.alphabet,
+    transitions,
+    start: frag.start,
+    accept: frag.accept,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════

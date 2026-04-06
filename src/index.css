@@ -1,19 +1,25 @@
 @import "tailwindcss";
 
-/* ── Formal Language Laboratory: Pen-and-Paper Aesthetic ── */
+/* ── Formal Language Laboratory: Academic Blueprint Theme ── */
 
 @theme {
+  --font-sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
   --font-serif: 'Crimson Pro', 'Georgia', 'Times New Roman', serif;
   --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
-  --color-ink: #111111;
-  --color-paper: #fafafa;
-  --color-border: #222222;
-  --color-border-light: #cccccc;
-  --color-accent: #990000;
-  --color-accept: #006600;
-  --color-reject: #990000;
-  --color-highlight: #ffffcc;
-  --color-muted: #666666;
+
+  /* ── Slate / Indigo Academic Palette ── */
+  --color-ink: #1e293b;
+  --color-paper: #f8fafc;
+  --color-surface: #f1f5f9;
+  --color-border: #334155;
+  --color-border-light: #cbd5e1;
+  --color-accent: #6366f1;
+  --color-accent-soft: #818cf8;
+  --color-accept: #059669;
+  --color-reject: #dc2626;
+  --color-highlight: #e0e7ff;
+  --color-muted: #64748b;
+  --color-glow: rgba(99, 102, 241, 0.15);
 }
 
 /* ── Base Reset ── */
@@ -29,10 +35,10 @@ html {
 }
 
 body {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--color-ink);
   background-color: var(--color-paper);
-  line-height: 1.5;
+  line-height: 1.55;
   min-height: 100vh;
 }
 
@@ -57,20 +63,31 @@ code, pre, .mono {
   font-style: italic;
 }
 
-/* ── Schematic Panel Borders ── */
+/* ── Schematic Panel ── */
 .panel {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-light);
   background: var(--color-paper);
+  border-radius: 0;
+}
+
+.panel:first-child {
+  border-right: 1px solid var(--color-border-light);
+}
+
+.panel:last-child {
+  border-left: 1px solid var(--color-border-light);
 }
 
 .panel-header {
-  border-bottom: 1px solid var(--color-border);
-  padding: 8px 12px;
-  font-family: var(--font-serif);
+  border-bottom: 1px solid var(--color-border-light);
+  padding: 10px 16px;
+  font-family: var(--font-sans);
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
+  color: var(--color-muted);
+  background: var(--color-surface);
 }
 
 /* ── Input Fields ── */
@@ -78,45 +95,52 @@ input[type="text"],
 textarea {
   font-family: var(--font-mono);
   font-size: 0.9rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-light);
+  border-radius: 6px;
   background: white;
-  padding: 6px 10px;
+  padding: 8px 12px;
   outline: none;
   width: 100%;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 input[type="text"]:focus,
 textarea:focus {
-  border-color: var(--color-ink);
-  box-shadow: 0 0 0 1px var(--color-ink);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-glow);
 }
 
 /* ── Buttons ── */
 button {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  border: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--color-border-light);
+  border-radius: 6px;
   background: white;
   color: var(--color-ink);
-  padding: 5px 14px;
+  padding: 6px 14px;
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: background-color 0.1s, color 0.1s;
+  letter-spacing: 0.04em;
+  transition: all 0.15s ease;
 }
 
 button:hover {
   background: var(--color-ink);
   color: white;
+  border-color: var(--color-ink);
 }
 
 button:active {
-  background: #333;
+  background: #334155;
+  transform: scale(0.98);
 }
 
 button.active {
-  background: var(--color-ink);
+  background: var(--color-accent);
   color: white;
+  border-color: var(--color-accent);
 }
 
 button:disabled {
@@ -124,43 +148,127 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* ── Stage Tabs ── */
+/* ── Segmented Control (Mode Toggle) ── */
+.segmented-control {
+  display: inline-flex;
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 3px;
+  border: 1px solid var(--color-border-light);
+  gap: 2px;
+}
+
+.segmented-pill {
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.segmented-pill:hover {
+  color: var(--color-ink);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.segmented-pill.active {
+  background: var(--color-accent);
+  color: white;
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.25);
+}
+
+/* ── Stage Tabs (Segmented Style) ── */
+.stage-tabs {
+  display: inline-flex;
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 3px;
+  border: 1px solid var(--color-border-light);
+  gap: 2px;
+}
+
 .stage-tab {
   display: inline-block;
-  padding: 5px 16px;
-  border: 1px solid var(--color-border);
-  border-bottom: none;
+  padding: 5px 14px;
+  border: none;
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  background: transparent;
+  color: var(--color-muted);
+  border-radius: 6px;
+  transition: all 0.2s ease;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  background: var(--color-paper);
-  margin-right: -1px;
+}
+
+.stage-tab:hover {
+  color: var(--color-ink);
+  background: rgba(99, 102, 241, 0.06);
 }
 
 .stage-tab.active {
-  background: var(--color-ink);
+  background: var(--color-accent);
   color: white;
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.25);
+}
+
+/* ── Section Labels ── */
+.section-label {
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-muted);
+  margin-bottom: 6px;
 }
 
 /* ── Tables ── */
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.8rem;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-light);
 }
 
 th, td {
-  border: 1px solid var(--color-border-light);
-  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border-light);
+  border-right: 1px solid var(--color-border-light);
+  padding: 5px 8px;
   text-align: left;
+}
+
+th:last-child, td:last-child {
+  border-right: none;
+}
+
+tr:last-child td {
+  border-bottom: none;
 }
 
 th {
   font-family: var(--font-serif);
   font-weight: 600;
-  background: #f0f0f0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.75rem;
+}
+
+tbody tr:nth-child(even) td {
+  background: var(--color-surface);
 }
 
 tr:hover td {
@@ -170,28 +278,33 @@ tr:hover td {
 
 /* ── Parse Error Underline ── */
 .parse-error-underline {
-  text-decoration: underline wavy var(--color-accent);
+  text-decoration: underline wavy var(--color-reject);
   text-underline-offset: 3px;
 }
 
 /* ── Status Badges ── */
 .badge {
-  display: inline-block;
-  font-family: var(--font-mono);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-sans);
   font-size: 0.7rem;
-  padding: 2px 8px;
-  border: 1px solid;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .badge-accepted {
-  border-color: var(--color-accept);
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.3);
   color: var(--color-accept);
 }
 
 .badge-rejected {
-  border-color: var(--color-reject);
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
   color: var(--color-reject);
 }
 
@@ -203,17 +316,22 @@ tr:hover td {
   width: 32px;
   height: 28px;
   border: 1px solid var(--color-border-light);
+  border-radius: 5px;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   cursor: pointer;
   background: white;
   text-transform: none;
+  color: var(--color-ink);
+  transition: all 0.15s ease;
 }
 
 .symbol-btn:hover {
-  background: var(--color-ink);
+  background: var(--color-accent);
   color: white;
-  border-color: var(--color-ink);
+  border-color: var(--color-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
 }
 
 /* ── Scrollbar ── */
@@ -228,7 +346,11 @@ tr:hover td {
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-border-light);
-  border: 1px solid var(--color-paper);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
 }
 
 /* ── Cytoscape container ── */
@@ -236,33 +358,55 @@ tr:hover td {
   width: 100%;
   height: 100%;
   min-height: 400px;
+  background: var(--color-paper);
 }
 
 /* ── Reduction Badge ── */
 .reduction-badge {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-light);
+  border-radius: 6px;
   padding: 8px 12px;
   font-family: var(--font-mono);
   font-size: 0.8rem;
   display: flex;
   align-items: center;
   gap: 8px;
+  background: var(--color-surface);
 }
 
 .reduction-arrow {
   font-family: var(--font-serif);
   font-size: 1.1rem;
+  color: var(--color-accent);
 }
 
 /* ── Tooltip ── */
 .cy-tooltip {
   position: absolute;
   background: white;
-  border: 1px solid var(--color-border);
-  padding: 4px 8px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 6px;
+  padding: 6px 10px;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   pointer-events: none;
   z-index: 1000;
   max-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Pipeline Status ── */
+.pipeline-status {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border-radius: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-light);
+}
+
+.pipeline-status span {
+  display: block;
+  padding: 1px 0;
 }

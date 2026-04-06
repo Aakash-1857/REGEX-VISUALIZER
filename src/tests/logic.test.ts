@@ -100,6 +100,64 @@ describe('Thompson\'s Construction (NFA)', () => {
   });
 });
 
+describe('Epsilon Cleanup — no redundant consecutive ε-chains', () => {
+  it('(a|b)* has fewer states after cleanup (< 8)', () => {
+    const { nfa } = pipeline('(a|b)*');
+    // Standard Thompson produces 8 states; cleanup should reduce this
+    expect(nfa.states.size).toBeLessThan(8);
+  });
+
+  it('no pass-through states in (a|b)* NFA', () => {
+    const { nfa } = pipeline('(a|b)*');
+    // A pass-through state has ONLY ε-in and ONLY ε-out and is not start/accept
+    for (const state of nfa.states) {
+      if (state === nfa.startState || nfa.acceptStates.has(state)) continue;
+
+      // Check outgoing
+      const outMap = nfa.transitions.get(state);
+      if (!outMap) continue;
+      const allOutEps = [...outMap.keys()].every(sym => sym === '');
+      if (!allOutEps) continue;
+
+      // Check incoming
+      let allInEps = true;
+      for (const [src, srcMap] of nfa.transitions) {
+        if (src === state) continue;
+        for (const [sym, tos] of srcMap) {
+          if (tos.has(state) && sym !== '') { allInEps = false; break; }
+        }
+        if (!allInEps) break;
+      }
+
+      // If both all-in-eps and all-out-eps, this is a pass-through — should not exist
+      expect(allOutEps && allInEps).toBe(false);
+    }
+  });
+
+  it('(a|b)* still accepts correct language after cleanup', () => {
+    expect(accepts('(a|b)*', '')).toBe(true);
+    expect(accepts('(a|b)*', 'a')).toBe(true);
+    expect(accepts('(a|b)*', 'b')).toBe(true);
+    expect(accepts('(a|b)*', 'ab')).toBe(true);
+    expect(accepts('(a|b)*', 'aabba')).toBe(true);
+    expect(accepts('(a|b)*', 'bbbbb')).toBe(true);
+  });
+
+  it('a*b* cleanup preserves semantics', () => {
+    expect(accepts('a*b*', '')).toBe(true);
+    expect(accepts('a*b*', 'aabb')).toBe(true);
+    expect(accepts('a*b*', 'ba')).toBe(false);
+  });
+
+  it('(a*)* cleanup reduces states and preserves semantics', () => {
+    const { nfa } = pipeline('(a*)*');
+    // Nested star should still be reduced
+    expect(nfa.states.size).toBeLessThanOrEqual(6);
+    expect(accepts('(a*)*', '')).toBe(true);
+    expect(accepts('(a*)*', 'aaa')).toBe(true);
+  });
+});
+
 describe('Subset Construction (DFA)', () => {
   it('DFA has no epsilon transitions', () => {
     const { dfa } = pipeline('(a|b)*abb');
