@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import { useAutomata } from '../hooks/useAutomata';
 import { ReductionBadge } from './ReductionBadge';
-import { simulateTrace } from '../logic/StringGenerator';
+import { simulateTrace, simulateNFATrace } from '../logic/StringGenerator';
 import { generateAccepted, generateRejected } from '../logic/StringGenerator';
 import type { NFA, DFA, MinDFA, StateId } from '../types/automata';
 
@@ -171,25 +171,48 @@ function TransitionTable({
   );
 }
 
-/** String tester: input a string, simulate, show trace. */
+/** String tester: input a string, simulate on the active stage automaton, show trace. */
 function StringTester() {
   const { state, dispatch } = useAutomata();
   const [testInput, setTestInput] = useState('');
 
-  const runTest = () => {
-    const automaton = state.activeStage === 'minDfa'
-      ? state.pipeline.minDfa
-      : state.activeStage === 'dfa'
-      ? state.pipeline.dfa
-      : (state.pipeline.minDfa || state.pipeline.dfa);
+  const getActiveAutomaton = (): NFA | DFA | MinDFA | null => {
+    switch (state.activeStage) {
+      case 'nfa': return state.pipeline.nfa;
+      case 'dfa': return state.pipeline.dfa;
+      case 'minDfa': return state.pipeline.minDfa;
+      default: return null;
+    }
+  };
 
+  const runTest = () => {
+    const automaton = getActiveAutomaton();
     if (!automaton) return;
 
     dispatch({ type: 'SET_TEST_STRING', payload: testInput });
-    const result = simulateTrace(automaton, testInput);
-    dispatch({ type: 'SET_TEST_TRACE', payload: result });
-    dispatch({ type: 'SET_HIGHLIGHTED', payload: new Set(result.trace) });
+
+    if (state.activeStage === 'nfa' && isNFAType(automaton)) {
+      // NFA: nondeterministic trace via ε-closure
+      const result = simulateNFATrace(automaton as NFA, testInput);
+      dispatch({ type: 'SET_TEST_TRACE', payload: result });
+      // Highlight the final state-set on the graph
+      if (result.kind === 'nfa' && result.trace.length > 0) {
+        dispatch({ type: 'SET_HIGHLIGHTED', payload: result.trace[result.trace.length - 1] });
+      }
+    } else {
+      // DFA/MinDFA: deterministic trace
+      const dfa = automaton as DFA | MinDFA;
+      const result = simulateTrace(dfa, testInput);
+      dispatch({ type: 'SET_TEST_TRACE', payload: result });
+      if (result.kind === 'dfa') {
+        dispatch({ type: 'SET_HIGHLIGHTED', payload: new Set(result.trace) });
+      }
+    }
   };
+
+  const stageLabel = state.activeStage === 'minDfa' ? 'Min-DFA' : state.activeStage.toUpperCase();
+  const hasAutomaton = getActiveAutomaton() !== null;
+  const testResult = state.testResult;
 
   return (
     <div>
@@ -206,7 +229,7 @@ function StringTester() {
           style={{ flex: 1 }}
           onKeyDown={(e) => e.key === 'Enter' && runTest()}
         />
-        <button onClick={runTest} disabled={!state.pipeline.dfa && !state.pipeline.minDfa}>
+        <button onClick={runTest} disabled={!hasAutomaton}>
           Test
         </button>
       </div>
@@ -216,9 +239,27 @@ function StringTester() {
           <div className={`badge ${state.testStatus === 'accepted' ? 'badge-accepted' : 'badge-rejected'}`}>
             {state.testStatus === 'accepted' ? '✓ Accepted' : '✗ Rejected'}
           </div>
-          {state.testTrace.length > 0 && (
+
+          {/* DFA / MinDFA trace: deterministic single-state path */}
+          {testResult.kind === 'dfa' && testResult.trace.length > 0 && (
             <div className="mt-1 text-xs" style={{ color: 'var(--color-muted)' }}>
-              Trace: {state.testTrace.join(' → ')}
+              <span style={{ fontWeight: 600 }}>Trace ({stageLabel}):</span>{' '}
+              {testResult.trace.join(' → ')}
+            </div>
+          )}
+
+          {/* NFA trace: nondeterministic state-set expansion */}
+          {testResult.kind === 'nfa' && testResult.trace.length > 0 && (
+            <div className="mt-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+              <span style={{ fontWeight: 600 }}>Trace (NFA ε-closure):</span>
+              <div style={{ marginTop: 2 }}>
+                {testResult.trace.map((stateSet, i) => (
+                  <span key={i}>
+                    {i > 0 && <span style={{ color: 'var(--color-accent)', margin: '0 3px' }}>→</span>}
+                    {'{'}{[...stateSet].sort().join(', ')}{'}'}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>

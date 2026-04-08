@@ -15,6 +15,7 @@ import type {
   ParseError,
   StateId,
   EquivalenceResult,
+  TestTraceResult,
 } from '../types/automata';
 
 // ═══════════════════════════════════════════════════════════
@@ -36,7 +37,7 @@ export type AutomataAction =
   | { type: 'SET_PARSE_ERRORS'; payload: { errors: ParseError[]; which: 'A' | 'B' } }
   | { type: 'SET_HIGHLIGHTED'; payload: Set<StateId> }
   | { type: 'SET_TEST_STRING'; payload: string }
-  | { type: 'SET_TEST_TRACE'; payload: { trace: StateId[]; accepted: boolean } }
+  | { type: 'SET_TEST_TRACE'; payload: TestTraceResult }
   | { type: 'RESET_TEST' }
   | { type: 'SET_EQUIVALENCE'; payload: EquivalenceResult | null };
 
@@ -54,7 +55,7 @@ export const initialState: AutomataState = {
   highlightedStates: new Set(),
   equivalenceResult: null,
   testString: '',
-  testTrace: [],
+  testResult: { kind: 'idle' },
   testStatus: 'idle',
   parseErrors: [],
   parseErrorsB: [],
@@ -81,7 +82,7 @@ export function automataReducer(
         ...state,
         regexA: action.payload,
         testStatus: 'idle',
-        testTrace: [],
+        testResult: { kind: 'idle' } as TestTraceResult,
         equivalenceResult: null,
       };
 
@@ -90,7 +91,7 @@ export function automataReducer(
         ...state,
         regexB: action.payload,
         testStatus: 'idle',
-        testTrace: [],
+        testResult: { kind: 'idle' } as TestTraceResult,
         equivalenceResult: null,
       };
 
@@ -138,21 +139,24 @@ export function automataReducer(
         ...state,
         testString: action.payload,
         testStatus: 'idle',
-        testTrace: [],
+        testResult: { kind: 'idle' } as TestTraceResult,
       };
 
-    case 'SET_TEST_TRACE':
+    case 'SET_TEST_TRACE': {
+      const result = action.payload;
+      const accepted = result.kind !== 'idle' ? result.accepted : false;
       return {
         ...state,
-        testTrace: action.payload.trace,
-        testStatus: action.payload.accepted ? 'accepted' : 'rejected',
+        testResult: result,
+        testStatus: accepted ? 'accepted' : 'rejected',
       };
+    }
 
     case 'RESET_TEST':
       return {
         ...state,
         testString: '',
-        testTrace: [],
+        testResult: { kind: 'idle' } as TestTraceResult,
         testStatus: 'idle',
       };
 

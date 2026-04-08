@@ -91,6 +91,27 @@ export interface MinDFA extends DFA {
 }
 
 /**
+ * Discriminated union for string test trace results.
+ *
+ * - DFA trace: deterministic, one state per input symbol consumed.
+ * - NFA trace: nondeterministic, each step is the ε-closure reachable state set.
+ */
+export type TestTraceResult =
+  | {
+      kind: 'dfa';
+      trace: StateId[];
+      accepted: boolean;
+    }
+  | {
+      kind: 'nfa';
+      trace: Set<StateId>[];
+      accepted: boolean;
+    }
+  | {
+      kind: 'idle';
+    };
+
+/**
  * Result of checking equivalence of two MinDFAs.
  *
  * If equivalent: bijection maps states of A to states of B.
@@ -115,7 +136,7 @@ export interface AutomataState {
   highlightedStates: Set<StateId>;
   equivalenceResult: EquivalenceResult | null;
   testString: string;
-  testTrace: StateId[];
+  testResult: TestTraceResult;
   testStatus: 'idle' | 'running' | 'accepted' | 'rejected';
   parseErrors: ParseError[];
   parseErrorsB: ParseError[];

@@ -16,9 +16,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { parse } from '../logic/RegexParser';
-import { toNFA, toDFA, minimize, epsilonClosure, resetStateCounter } from '../logic/AutomataEngine';
+import { toNFA, toDFA, minimize, epsilonClosure, resetStateCounter, validateDFAInvariant } from '../logic/AutomataEngine';
 import { checkEquivalence } from '../logic/EquivalenceChecker';
-import { generateAccepted, generateRejected, simulateAccepts } from '../logic/StringGenerator';
+import { generateAccepted, generateRejected, simulateAccepts, simulateTrace, simulateNFATrace } from '../logic/StringGenerator';
 // Types imported for reference but tests use the pipeline helper
 
 /**
@@ -389,5 +389,212 @@ describe('Equivalence Checker', () => {
     const result = checkEquivalence(p1.minDfa, p2.minDfa);
     expect(result.equivalent).toBe(false);
     expect(result.witness).not.toBeNull();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// REFACTOR REGRESSION TESTS
+// ═══════════════════════════════════════════════════════════
+
+describe('ab* — DFA correctness and sink state', () => {
+  const regex = 'ab*';
+
+  it('accepts strings matching ab*', () => {
+    expect(accepts(regex, 'a')).toBe(true);
+    expect(accepts(regex, 'ab')).toBe(true);
+    expect(accepts(regex, 'abb')).toBe(true);
+    expect(accepts(regex, 'abbb')).toBe(true);
+    expect(accepts(regex, 'abbbb')).toBe(true);
+  });
+
+  it('rejects strings NOT matching ab*', () => {
+    expect(accepts(regex, '')).toBe(false);
+    expect(accepts(regex, 'b')).toBe(false);
+    expect(accepts(regex, 'ba')).toBe(false);
+    expect(accepts(regex, 'aa')).toBe(false);    // ← crucial: second 'a' → sink
+    expect(accepts(regex, 'aab')).toBe(false);
+    expect(accepts(regex, 'aba')).toBe(false);   // 'a' after 'b' → sink
+  });
+
+  it('DFA has a non-accepting sink state for aa', () => {
+    const { dfa } = pipeline(regex);
+    // Simulate: start → 'a' → state1 → 'a' → state2
+    const result = simulateTrace(dfa, 'aa');
+    expect(result.kind).toBe('dfa');
+    if (result.kind === 'dfa') {
+      expect(result.accepted).toBe(false);
+      expect(result.trace.length).toBe(3); // [start, after_a, after_aa]
+      const sinkState = result.trace[2];
+      // Sink state must NOT be accepting
+      expect(dfa.acceptStates.has(sinkState)).toBe(false);
+      // Sink state must loop to itself on all symbols (trap)
+      for (const sym of dfa.alphabet) {
+        expect(dfa.transitions.get(sinkState)?.get(sym)).toBe(sinkState);
+      }
+    }
+  });
+});
+
+describe('DFA Validation — validateDFAInvariant', () => {
+  it('passes for well-formed DFAs', () => {
+    const { dfa } = pipeline('(a|b)*abb');
+    const errors = validateDFAInvariant(dfa);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('passes for minimized DFAs', () => {
+    const { minDfa } = pipeline('a*b*');
+    const errors = validateDFAInvariant(minDfa);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('passes for single-state DFAs', () => {
+    const { minDfa } = pipeline('(a|b)*');
+    const errors = validateDFAInvariant(minDfa);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('detects missing transitions (malformed DFA)', () => {
+    // Construct a deliberately broken DFA
+    const brokenDfa = {
+      states: new Set(['s0', 's1']),
+      alphabet: new Set(['a', 'b']),
+      transitions: new Map([
+        ['s0', new Map([['a', 's1']])],  // missing 'b' transition for s0
+        ['s1', new Map([['a', 's1'], ['b', 's0']])],
+      ]),
+      startState: 's0',
+      acceptStates: new Set(['s1']),
+    };
+    const errors = validateDFAInvariant(brokenDfa);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some(e => e.kind === 'missing_transition')).toBe(true);
+  });
+
+  it('detects start state not in Q', () => {
+    const brokenDfa = {
+      states: new Set(['s0']),
+      alphabet: new Set(['a']),
+      transitions: new Map([['s0', new Map([['a', 's0']])]]),
+      startState: 'NONEXISTENT',
+      acceptStates: new Set<string>(),
+    };
+    const errors = validateDFAInvariant(brokenDfa);
+    expect(errors.some(e => e.kind === 'start_not_in_Q')).toBe(true);
+  });
+});
+
+describe('NFA Trace — simulateNFATrace', () => {
+  it('returns nfa-kind trace with ε-closure expansion', () => {
+    const { nfa } = pipeline('a|b');
+    const result = simulateNFATrace(nfa, 'a');
+    expect(result.kind).toBe('nfa');
+    if (result.kind === 'nfa') {
+      expect(result.accepted).toBe(true);
+      // Trace should have 2 entries: initial ε-closure, then after 'a'
+      expect(result.trace.length).toBe(2);
+      // Initial ε-closure must contain the start state
+      expect(result.trace[0].has(nfa.startState)).toBe(true);
+      // Final state-set must contain an accept state
+      const finalSet = result.trace[1];
+      let hasAccept = false;
+      for (const s of finalSet) {
+        if (nfa.acceptStates.has(s)) { hasAccept = true; break; }
+      }
+      expect(hasAccept).toBe(true);
+    }
+  });
+
+  it('rejects string not in NFA language', () => {
+    const { nfa } = pipeline('a');
+    const result = simulateNFATrace(nfa, 'b');
+    expect(result.kind).toBe('nfa');
+    if (result.kind === 'nfa') {
+      expect(result.accepted).toBe(false);
+    }
+  });
+
+  it('handles ε-only NFA correctly', () => {
+    const { nfa } = pipeline('ε');
+    const result = simulateNFATrace(nfa, '');
+    expect(result.kind).toBe('nfa');
+    if (result.kind === 'nfa') {
+      expect(result.accepted).toBe(true);
+      expect(result.trace.length).toBe(1); // only the initial ε-closure
+    }
+  });
+});
+
+describe('State-ID Synchronization', () => {
+  it('DFA trace uses d-prefixed states', () => {
+    const { dfa } = pipeline('ab*');
+    const result = simulateTrace(dfa, 'ab');
+    expect(result.kind).toBe('dfa');
+    if (result.kind === 'dfa') {
+      for (const stateId of result.trace) {
+        expect(stateId.startsWith('d')).toBe(true);
+      }
+    }
+  });
+
+  it('MinDFA trace uses m-prefixed states', () => {
+    const { minDfa } = pipeline('ab*');
+    const result = simulateTrace(minDfa, 'ab');
+    expect(result.kind).toBe('dfa');
+    if (result.kind === 'dfa') {
+      for (const stateId of result.trace) {
+        expect(stateId.startsWith('m')).toBe(true);
+      }
+    }
+  });
+
+  it('NFA trace uses q-prefixed states', () => {
+    const { nfa } = pipeline('a|b');
+    const result = simulateNFATrace(nfa, 'a');
+    expect(result.kind).toBe('nfa');
+    if (result.kind === 'nfa') {
+      for (const stateSet of result.trace) {
+        for (const stateId of stateSet) {
+          expect(stateId.startsWith('q')).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('DFA and MinDFA agree on acceptance for same input', () => {
+    const { dfa, minDfa } = pipeline('(a|b)*abb');
+    const testStrings = ['abb', 'aabb', 'babb', 'ab', '', 'aba', 'aa'];
+    for (const s of testStrings) {
+      const dfaResult = simulateTrace(dfa, s);
+      const minResult = simulateTrace(minDfa, s);
+      expect(dfaResult.kind).toBe('dfa');
+      expect(minResult.kind).toBe('dfa');
+      if (dfaResult.kind === 'dfa' && minResult.kind === 'dfa') {
+        expect(dfaResult.accepted).toBe(minResult.accepted);
+      }
+    }
+  });
+});
+
+describe('generateAccepted — breadth-limited BFS', () => {
+  it('generates multiple accepted strings of varying lengths for ab*', () => {
+    const { minDfa } = pipeline('ab*');
+    const accepted = generateAccepted(minDfa, { maxLength: 5, maxResults: 5 });
+    // Should include 'a' (length 1) and longer strings
+    expect(accepted).toContain('a');
+    expect(accepted.length).toBeGreaterThanOrEqual(3);
+    // All should be accepted
+    for (const s of accepted) {
+      expect(simulateAccepts(minDfa, s)).toBe(true);
+    }
+    // Should have strings of different lengths
+    const lengths = new Set(accepted.map(s => s.length));
+    expect(lengths.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('generates ε for nullable regex', () => {
+    const { minDfa } = pipeline('a*');
+    const accepted = generateAccepted(minDfa, { maxLength: 3, maxResults: 5 });
+    expect(accepted).toContain('');
   });
 });

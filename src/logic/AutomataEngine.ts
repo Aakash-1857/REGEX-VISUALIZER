@@ -565,7 +565,7 @@ export function toDFA(nfa: NFA): DFA {
 }
 
 /** Create a canonical string key for a set of states (sorted, comma-joined). */
-function stateSetKey(states: Set<StateId>): string {
+export function stateSetKey(states: Set<StateId>): string {
   return [...states].sort().join(',');
 }
 
@@ -748,4 +748,81 @@ function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
     if (!b.has(item)) return false;
   }
   return true;
+}
+
+// ═══════════════════════════════════════════════════════════
+// §7. DFA Validation — 5-Tuple Invariant Check
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Validation error returned by validateDFAInvariant.
+ */
+export interface DFAValidationError {
+  kind: 'missing_transition' | 'start_not_in_Q' | 'accept_not_in_Q' | 'orphan_target' | 'no_states';
+  message: string;
+}
+
+/**
+ * Validate that a DFA (or MinDFA) satisfies the formal 5-tuple definition:
+ *   D = (Q, Σ, δ, q₀, F)
+ *
+ * Checks:
+ *   1. Q is non-empty
+ *   2. q₀ ∈ Q
+ *   3. F ⊆ Q
+ *   4. ∀ q ∈ Q, ∀ a ∈ Σ: δ(q, a) is defined (total function)
+ *   5. ∀ q ∈ Q, ∀ a ∈ Σ: δ(q, a) ∈ Q (targets are valid states)
+ *
+ * @param dfa - The DFA to validate.
+ * @returns Array of validation errors (empty if valid).
+ */
+export function validateDFAInvariant(dfa: DFA): DFAValidationError[] {
+  const errors: DFAValidationError[] = [];
+
+  // 1. Q is non-empty
+  if (dfa.states.size === 0) {
+    errors.push({ kind: 'no_states', message: 'Q is empty — DFA has no states.' });
+    return errors; // remaining checks are meaningless
+  }
+
+  // 2. q₀ ∈ Q
+  if (!dfa.states.has(dfa.startState)) {
+    errors.push({
+      kind: 'start_not_in_Q',
+      message: `Start state "${dfa.startState}" is not in Q = {${[...dfa.states].join(', ')}}.`,
+    });
+  }
+
+  // 3. F ⊆ Q
+  for (const f of dfa.acceptStates) {
+    if (!dfa.states.has(f)) {
+      errors.push({
+        kind: 'accept_not_in_Q',
+        message: `Accept state "${f}" is not in Q.`,
+      });
+    }
+  }
+
+  // 4–5. Total transition function with valid targets
+  for (const state of dfa.states) {
+    const transMap = dfa.transitions.get(state);
+    for (const sym of dfa.alphabet) {
+      if (!transMap || !transMap.has(sym)) {
+        errors.push({
+          kind: 'missing_transition',
+          message: `δ(${state}, '${sym}') is undefined — transition function is not total.`,
+        });
+      } else {
+        const target = transMap.get(sym)!;
+        if (!dfa.states.has(target)) {
+          errors.push({
+            kind: 'orphan_target',
+            message: `δ(${state}, '${sym}') = "${target}" which is not in Q.`,
+          });
+        }
+      }
+    }
+  }
+
+  return errors;
 }

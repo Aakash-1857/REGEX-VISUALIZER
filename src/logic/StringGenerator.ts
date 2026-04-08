@@ -1,32 +1,152 @@
 /**
- * StringGenerator.ts — Generate accepted and rejected strings for a MinDFA.
+ * StringGenerator.ts — String simulation and generation for automata.
  *
- * **Algorithm:** BFS over MinDFA states, tracking the path string.
- *
- * For accepted strings:
- *   Queue: (StateId, pathSoFar)
- *   When an accept state is dequeued, emit pathSoFar.
- *   BFS guarantees shortest-first (non-decreasing length) ordering.
- *
- * For rejected strings:
- *   Enumerate strings in BFS order over the alphabet.
- *   Simulate each on the MinDFA; emit if rejected.
+ * Contains:
+ * 1. simulateTrace — DFA step-by-step deterministic trace
+ * 2. simulateNFATrace — NFA step-by-step nondeterministic trace (ε-closure)
+ * 3. simulateAccepts — Quick DFA acceptance check
+ * 4. generateAccepted — Breadth-limited BFS for accepted string samples
+ * 5. generateRejected — BFS enumeration for rejected string samples
  *
  * ZERO React imports. Pure TypeScript.
  */
 
-import type { MinDFA, StateId } from '../types/automata';
+import type { NFA, MinDFA, StateId, TestTraceResult } from '../types/automata';
+import { epsilonClosure } from './AutomataEngine';
+
+// ═══════════════════════════════════════════════════════════
+// §1. DFA Simulation (deterministic trace)
+// ═══════════════════════════════════════════════════════════
 
 /**
- * Generate strings accepted by the given MinDFA, in shortest-first order.
+ * Simulate a string step-by-step on a DFA, returning the trace of states visited.
  *
- * Uses BFS from the start state. Each queue entry is (currentState, pathSoFar).
- * When we dequeue a state that is accepting, we yield the path.
+ * Each step consumes one input symbol and follows δ(q, a) → q'.
+ * The trace includes the start state as the first element.
+ *
+ * @param dfa - The DFA (or MinDFA).
+ * @param input - The string to simulate.
+ * @returns TestTraceResult with kind 'dfa'.
+ */
+export function simulateTrace(
+  dfa: { transitions: Map<StateId, Map<string, StateId>>; startState: StateId; acceptStates: Set<StateId> },
+  input: string
+): TestTraceResult {
+  const trace: StateId[] = [dfa.startState];
+  let current = dfa.startState;
+
+  for (const ch of input) {
+    const next = dfa.transitions.get(current)?.get(ch);
+    if (next === undefined) {
+      // No transition defined — reject (should only happen if δ is partial)
+      return { kind: 'dfa', trace, accepted: false };
+    }
+    current = next;
+    trace.push(current);
+  }
+
+  return { kind: 'dfa', trace, accepted: dfa.acceptStates.has(current) };
+}
+
+// ═══════════════════════════════════════════════════════════
+// §2. NFA Simulation (nondeterministic trace via ε-closure)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Simulate a string step-by-step on an NFA using ε-closure expansion.
+ *
+ * **Algorithm:**
+ *   1. Start with ε-CLOSURE({q₀})
+ *   2. For each input symbol a:
+ *      - Compute move(currentStates, a) = ∪_{q∈S} δ(q, a)
+ *      - Compute ε-CLOSURE(move(currentStates, a))
+ *   3. Accept if final state-set ∩ F ≠ ∅
+ *
+ * The trace is an array of state-sets, one per step (including initial).
+ *
+ * @param nfa - The NFA.
+ * @param input - The string to simulate.
+ * @returns TestTraceResult with kind 'nfa'.
+ */
+export function simulateNFATrace(
+  nfa: NFA,
+  input: string
+): TestTraceResult {
+  // Step 0: ε-CLOSURE({q₀})
+  let currentStates = epsilonClosure(nfa, new Set([nfa.startState]));
+  const trace: Set<StateId>[] = [new Set(currentStates)];
+
+  for (const ch of input) {
+    // Compute move(S, a)
+    const moved = new Set<StateId>();
+    for (const state of currentStates) {
+      const targets = nfa.transitions.get(state)?.get(ch);
+      if (targets) {
+        for (const t of targets) moved.add(t);
+      }
+    }
+
+    // Compute ε-CLOSURE(move(S, a))
+    currentStates = epsilonClosure(nfa, moved);
+    trace.push(new Set(currentStates));
+  }
+
+  // Accept if any state in the final set is an accept state
+  let accepted = false;
+  for (const state of currentStates) {
+    if (nfa.acceptStates.has(state)) {
+      accepted = true;
+      break;
+    }
+  }
+
+  return { kind: 'nfa', trace, accepted };
+}
+
+// ═══════════════════════════════════════════════════════════
+// §3. Quick DFA Acceptance Check
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Simulate a string on a DFA and return whether it is accepted.
+ *
+ * δ*(q₀, w) ∈ F  ↔  w ∈ L(DFA)
+ *
+ * @param dfa - The DFA (or MinDFA).
+ * @param input - The string to simulate.
+ * @returns true if the string is accepted, false otherwise.
+ */
+export function simulateAccepts(
+  dfa: MinDFA | { states: Set<StateId>; alphabet: Set<string>; transitions: Map<StateId, Map<string, StateId>>; startState: StateId; acceptStates: Set<StateId> },
+  input: string
+): boolean {
+  let current = dfa.startState;
+
+  for (const ch of input) {
+    const next = dfa.transitions.get(current)?.get(ch);
+    if (next === undefined) return false; // No transition → reject
+    current = next;
+  }
+
+  return dfa.acceptStates.has(current);
+}
+
+// ═══════════════════════════════════════════════════════════
+// §4. Breadth-Limited Accepted String Generation
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Generate strings accepted by the given MinDFA, sampling across varying lengths.
+ *
+ * **Algorithm:** Breadth-limited BFS that does NOT track visited states.
+ * Instead, it explores transitions level-by-level (by string length) and
+ * collects accepted strings at each depth. A per-depth cap prevents
+ * exponential blowup on Σ* languages.
  *
  * @param dfa - The MinDFA to generate strings for.
  * @param opts.maxLength - Maximum string length to explore (prevents infinite loop on r*).
  * @param opts.maxResults - Maximum number of strings to return.
- * @returns Array of accepted strings in non-decreasing length order.
+ * @returns Array of accepted strings sampling multiple lengths.
  */
 export function generateAccepted(
   dfa: MinDFA,
@@ -35,51 +155,69 @@ export function generateAccepted(
   const results: string[] = [];
   const alphabet = [...dfa.alphabet].sort();
 
+  if (alphabet.length === 0) {
+    // No alphabet → only ε is possible
+    if (dfa.acceptStates.has(dfa.startState)) {
+      results.push('');
+    }
+    return results;
+  }
+
   // BFS queue: [state, path built so far]
-  const queue: Array<[StateId, string]> = [[dfa.startState, '']];
+  // We allow revisiting states at different depths to discover longer strings.
+  let currentLevel: Array<[StateId, string]> = [[dfa.startState, '']];
 
-  // Track visited (state, path length) to avoid revisiting identical BFS levels
-  // Actually for BFS on DFA we just track visited states — but since the same state
-  // can be reached with different paths (at different lengths), we must allow revisits
-  // at different depths. We use a visited set of (state, length) pairs.
-  // But this can explode. Instead: the DFA is deterministic, so each string
-  // leads to exactly one state. We do BFS over strings, not states.
-  // Optimization: BFS by state is sufficient since for shortest-first we only
-  // care about first visit to each state.
-  const visited = new Set<StateId>();
-
-  // Check start state
+  // Check ε (start state accepting)
   if (dfa.acceptStates.has(dfa.startState)) {
-    results.push(''); // ε is accepted
+    results.push('');
     if (results.length >= opts.maxResults) return results;
   }
-  visited.add(dfa.startState);
 
-  while (queue.length > 0 && results.length < opts.maxResults) {
-    const [currentState, path] = queue.shift()!;
+  // Maximum entries to expand per BFS level (prevents Σ* explosion)
+  const MAX_LEVEL_SIZE = 64;
 
-    if (path.length >= opts.maxLength) continue;
+  for (let depth = 0; depth < opts.maxLength && results.length < opts.maxResults; depth++) {
+    const nextLevel: Array<[StateId, string]> = [];
 
-    for (const c of alphabet) {
-      const nextState = dfa.transitions.get(currentState)?.get(c);
-      if (nextState === undefined) continue;
+    for (const [currentState, path] of currentLevel) {
+      for (const c of alphabet) {
+        const nextState = dfa.transitions.get(currentState)?.get(c);
+        if (nextState === undefined) continue;
 
-      const newPath = path + c;
+        const newPath = path + c;
 
-      if (dfa.acceptStates.has(nextState) && !visited.has(nextState)) {
-        results.push(newPath);
-        if (results.length >= opts.maxResults) return results;
+        if (dfa.acceptStates.has(nextState)) {
+          // Avoid duplicate strings
+          if (!results.includes(newPath)) {
+            results.push(newPath);
+            if (results.length >= opts.maxResults) return results;
+          }
+        }
+
+        nextLevel.push([nextState, newPath]);
       }
+    }
 
-      if (!visited.has(nextState)) {
-        visited.add(nextState);
-        queue.push([nextState, newPath]);
+    // Cap the level size to avoid exponential blowup
+    if (nextLevel.length > MAX_LEVEL_SIZE) {
+      // Sample evenly across the level for diversity
+      const sampled: Array<[StateId, string]> = [];
+      const step = nextLevel.length / MAX_LEVEL_SIZE;
+      for (let i = 0; i < MAX_LEVEL_SIZE; i++) {
+        sampled.push(nextLevel[Math.floor(i * step)]);
       }
+      currentLevel = sampled;
+    } else {
+      currentLevel = nextLevel;
     }
   }
 
   return results;
 }
+
+// ═══════════════════════════════════════════════════════════
+// §5. Rejected String Generation
+// ═══════════════════════════════════════════════════════════
 
 /**
  * Generate strings rejected by the given MinDFA, in shortest-first order.
@@ -128,51 +266,4 @@ export function generateRejected(
   }
 
   return results;
-}
-
-/**
- * Simulate a string on a DFA and return whether it is accepted.
- *
- * δ*(q₀, w) ∈ F  ↔  w ∈ L(DFA)
- *
- * @param dfa - The DFA (or MinDFA).
- * @param input - The string to simulate.
- * @returns true if the string is accepted, false otherwise.
- */
-export function simulateAccepts(dfa: MinDFA | { states: Set<StateId>; alphabet: Set<string>; transitions: Map<StateId, Map<string, StateId>>; startState: StateId; acceptStates: Set<StateId> }, input: string): boolean {
-  let current = dfa.startState;
-
-  for (const ch of input) {
-    const next = dfa.transitions.get(current)?.get(ch);
-    if (next === undefined) return false; // No transition → reject
-    current = next;
-  }
-
-  return dfa.acceptStates.has(current);
-}
-
-/**
- * Simulate a string step-by-step on a DFA, returning the trace of states visited.
- *
- * @param dfa - The DFA.
- * @param input - The string to simulate.
- * @returns Array of StateIds representing the trace [q₀, δ(q₀,w₁), δ*(q₀,w₁w₂), ...].
- */
-export function simulateTrace(
-  dfa: { transitions: Map<StateId, Map<string, StateId>>; startState: StateId; acceptStates: Set<StateId> },
-  input: string
-): { trace: StateId[]; accepted: boolean } {
-  const trace: StateId[] = [dfa.startState];
-  let current = dfa.startState;
-
-  for (const ch of input) {
-    const next = dfa.transitions.get(current)?.get(ch);
-    if (next === undefined) {
-      return { trace, accepted: false };
-    }
-    current = next;
-    trace.push(current);
-  }
-
-  return { trace, accepted: dfa.acceptStates.has(current) };
 }

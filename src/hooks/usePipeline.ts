@@ -11,7 +11,7 @@
 import { useEffect, useRef } from 'react';
 import { useAutomata } from './useAutomata';
 import { parse } from '../logic/RegexParser';
-import { toNFA, toDFA, minimize } from '../logic/AutomataEngine';
+import { toNFA, toDFA, minimize, validateDFAInvariant } from '../logic/AutomataEngine';
 import { checkEquivalence } from '../logic/EquivalenceChecker';
 
 /**
@@ -94,7 +94,19 @@ export function usePipeline(): void {
     try {
       const nfa = toNFA(parseResult.ast);
       const dfa = toDFA(nfa);
+
+      // ── Validation pass: verify 5-tuple invariants ──
+      const dfaErrors = validateDFAInvariant(dfa);
+      if (dfaErrors.length > 0) {
+        console.warn(`[Pipeline ${which}] DFA validation failed:`, dfaErrors);
+      }
+
       const minDfa = minimize(dfa);
+
+      const minErrors = validateDFAInvariant(minDfa);
+      if (minErrors.length > 0) {
+        console.warn(`[Pipeline ${which}] MinDFA validation failed:`, minErrors);
+      }
 
       dispatch({
         type: 'PIPELINE_COMPLETE',
