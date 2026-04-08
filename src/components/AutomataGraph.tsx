@@ -126,7 +126,7 @@ const CY_STYLE: cytoscape.StylesheetStyle[] = [
       'border-width': 1,
       'border-style': 'dashed',
       'border-color': '#666',
-      'padding': 20,
+      'padding': '20px',
       label: 'data(label)',
       'text-valign': 'top',
       'text-halign': 'center',
@@ -213,7 +213,7 @@ export function AutomataGraph() {
 
       // Add bridge lines for bijection
       if (state.activeStage === 'minDfa' && state.equivalenceResult?.equivalent && state.equivalenceResult.bijection) {
-        console.log(`[Graph Render] Drawing ${state.equivalenceResult.bijection.length} bijection bridges (Left: MinDFA, Right: MinDFA)`);
+        console.log(`[Graph Render] Drawing ${state.equivalenceResult.bijection.size} bijection bridges (Left: MinDFA, Right: MinDFA)`);
         for (const [stateA, stateB] of state.equivalenceResult.bijection) {
           console.log(`[Graph Render] Node A: a-${stateA} | Node B: b-${stateB}`); // Instrumentation
           elements.push({
