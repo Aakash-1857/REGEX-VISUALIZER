@@ -3,6 +3,7 @@
 > Enter a regular expression. See the strings it generates.
 > Prove two expressions equivalent — or find the string that breaks them.
 
+Made by: Aakash Gupta, B.Tech NSUT, Mathematics and Computing (2024UCM2848)
 ---
 
 ## What It Does
